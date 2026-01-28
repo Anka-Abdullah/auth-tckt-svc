@@ -33,6 +33,13 @@ func (r *AuthRoutes) RegisterRoutes(e *echo.Group) {
 	authGroup.POST("/reset-password", r.handler.ResetPassword)
 	authGroup.POST("/verify-email", r.handler.VerifyEmail)
 
+	// OTP routes
+	authGroup.POST("/register-with-otp", r.handler.RegisterWithOTP)
+	authGroup.POST("/verify-otp", r.handler.VerifyOTP)
+	authGroup.POST("/resend-otp", r.handler.ResendOTP)
+	authGroup.POST("/login-with-otp", r.handler.LoginWithOTP)
+	authGroup.POST("/verify-login-otp", r.handler.VerifyLoginOTP)
+
 	// Protected routes (require authentication)
 	protectedGroup := authGroup.Group("")
 	protectedGroup.Use(r.mw.JWTMiddleware())

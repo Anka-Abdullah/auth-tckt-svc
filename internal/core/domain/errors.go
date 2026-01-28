@@ -11,4 +11,7 @@ var (
 	ErrUserNotVerified    = errors.New("user not verified")
 	ErrUserInactive       = errors.New("user is inactive")
 	ErrWeakPassword       = errors.New("password is too weak")
+	ErrInternal           = errors.New("internal server error")
+	ErrInvalidOTP         = errors.New("invalid or expired otp")
+	ErrAlreadyVerified    = errors.New("user already verified")
 )

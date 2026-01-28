@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -41,6 +42,7 @@ type DatabaseConfig struct {
 	Password string
 	Name     string
 	SSLMode  string
+	TimeZone string
 }
 
 type RedisConfig struct {
@@ -69,6 +71,19 @@ type AppConfig struct {
 	Version     string
 	BaseURL     string
 	FrontendURL string
+}
+
+func (db *DatabaseConfig) GetDSN() string {
+	return fmt.Sprintf(
+		"host=%s user=%s password=%s dbname=%s port=%s sslmode=%s TimeZone=%s",
+		db.Host,
+		db.User,
+		db.Password,
+		db.Name,
+		db.Port,
+		db.SSLMode,
+		db.TimeZone,
+	)
 }
 
 func LoadConfig() (*Config, error) {
@@ -105,6 +120,7 @@ func LoadConfig() (*Config, error) {
 			Password: getEnv("DB_PASSWORD", ""),
 			Name:     getEnv("DB_NAME", "auth_service"),
 			SSLMode:  getEnv("DB_SSL_MODE", "disable"),
+			TimeZone: getEnv("DB_TIMEZONE", "Asia/Jakarta"),
 		},
 		Redis: RedisConfig{
 			Host:     getEnv("REDIS_HOST", "localhost"),

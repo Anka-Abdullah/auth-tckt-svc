@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -143,12 +144,14 @@ func main() {
 
 // setupDependencies - Setup semua dependencies
 func setupDependencies(cfg *config.Config, logger *logger.Logger) (*config.Container, error) {
-	// Ini adalah placeholder - implementasi nyata akan bergantung pada database, redis, dll.
-	container := &config.Container{
-		Config: cfg,
-		Logger: logger,
-		// Inisialisasi dependency lainnya di sini
+	// Initialize container dengan database
+	container, err := config.NewContainer(cfg, logger)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup container: %w", err)
 	}
+
+	// Initialize other dependencies here
+	// Contoh: jwtManager, authService, etc.
 
 	return container, nil
 }
@@ -157,8 +160,10 @@ func setupDependencies(cfg *config.Config, logger *logger.Logger) (*config.Conta
 func setupRoutes(e *echo.Echo, container *config.Container, logger *logger.Logger) {
 	// Setup route container
 	routeContainer := &routes.Container{
-		// Handler dan middleware akan diinisialisasi di sini
-		Logger: logger,
+		AuthHandler:   container.AuthHandler,
+		HealthHandler: container.HealthHandler,
+		Middleware:    container.Middleware,
+		Logger:        logger,
 	}
 
 	routes.SetupRoutes(e, routeContainer)

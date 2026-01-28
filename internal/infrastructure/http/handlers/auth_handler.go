@@ -10,6 +10,28 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+const (
+	// Error messages
+	ErrInvalidRequestPayload = "Invalid request payload"
+	ErrValidationFailed      = "Validation failed"
+
+	// Success messages
+	SuccessRegistration       = "Registration successful"
+	SuccessRegistrationOTP    = "Registration successful. OTP sent to your email"
+	SuccessRegistrationVerify = "Registration successful. Please check your email for verification"
+	SuccessLogin              = "Login successful"
+	SuccessLogout             = "Logged out successfully"
+	SuccessProfile            = "Profile retrieved successfully"
+	SuccessEmailVerified      = "Email verified successfully"
+	SuccessPasswordReset      = "Password reset instructions sent to your email"
+	SuccessPasswordChanged    = "Password reset successful"
+	SuccessTokenRefreshed     = "Token refreshed successfully"
+	SuccessOTPVerified        = "Email verified successfully"
+	SuccessOTPResent          = "OTP resent successfully"
+	SuccessOTPSent            = "OTP sent successfully"
+	SuccessOTPLogin           = "Login successful"
+)
+
 // Request/Response DTOs
 type (
 	RegisterRequest struct {
@@ -41,6 +63,31 @@ type (
 		Token string `json:"token" validate:"required"`
 	}
 
+	RegisterWithOTPRequest struct {
+		Email    string `json:"email" validate:"required,email"`
+		Password string `json:"password" validate:"required,min=8"`
+		FullName string `json:"full_name" validate:"required"`
+		Phone    string `json:"phone" validate:"required"`
+	}
+
+	VerifyOTPRequest struct {
+		Email string `json:"email" validate:"required,email"`
+		OTP   string `json:"otp" validate:"required,len=6"`
+	}
+
+	ResendOTPRequest struct {
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	LoginWithOTPRequest struct {
+		Email string `json:"email" validate:"required,email"`
+	}
+
+	VerifyLoginOTPRequest struct {
+		Email string `json:"email" validate:"required,email"`
+		OTP   string `json:"otp" validate:"required,len=6"`
+	}
+
 	AuthResponse struct {
 		AccessToken  string       `json:"access_token"`
 		RefreshToken string       `json:"refresh_token"`
@@ -50,16 +97,19 @@ type (
 
 type AuthHandler struct {
 	authService ports.AuthService
+	otpService  ports.OTPService
 	logger      *logger.Logger
 	validator   *utils.CustomValidator
 }
 
 func NewAuthHandler(
 	authService ports.AuthService,
+	otpService ports.OTPService,
 	logger *logger.Logger,
 ) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
+		otpService:  otpService,
 		logger:      logger,
 		validator:   utils.NewCustomValidator(),
 	}
@@ -83,7 +133,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	var req RegisterRequest
 	if err := c.Bind(&req); err != nil {
 		h.logger.Error("Failed to bind request", err)
-		return c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request payload"))
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(ErrInvalidRequestPayload))
 	}
 
 	// Validate request
@@ -115,7 +165,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	)
 
 	return c.JSON(http.StatusCreated, utils.SuccessResponse(
-		"Registration successful. Please check your email for verification.",
+		SuccessRegistrationVerify,
 		result,
 	))
 }
@@ -139,7 +189,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	var req LoginRequest
 	if err := c.Bind(&req); err != nil {
 		h.logger.Error("Failed to bind login request", err)
-		return c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request payload"))
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(ErrInvalidRequestPayload))
 	}
 
 	if err := h.validator.Validate(req); err != nil {
@@ -154,7 +204,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		return utils.HandleError(c, err)
 	}
 
-	h.logger.Info("Login successful", "email", req.Email)
+	h.logger.Info(SuccessLogin, "email", req.Email)
 
 	response := AuthResponse{
 		AccessToken:  tokens.AccessToken,
@@ -163,7 +213,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, utils.SuccessResponse(
-		"Login successful",
+		SuccessLogin,
 		response,
 	))
 }
@@ -183,7 +233,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	var req RefreshTokenRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request"))
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(ErrInvalidRequestPayload))
 	}
 
 	if err := h.validator.Validate(req); err != nil {
@@ -203,7 +253,7 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, utils.SuccessResponse(
-		"Token refreshed successfully",
+		SuccessTokenRefreshed,
 		response,
 	))
 }
@@ -228,10 +278,10 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 		return utils.HandleError(c, err)
 	}
 
-	h.logger.Info("User logged out", "user_id", userID)
+	h.logger.Info(SuccessLogout, "user_id", userID)
 
 	return c.JSON(http.StatusOK, utils.SuccessResponse(
-		"Logged out successfully",
+		SuccessLogout,
 		nil,
 	))
 }
@@ -251,7 +301,7 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 	var req ForgotPasswordRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request"))
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(ErrInvalidRequestPayload))
 	}
 
 	if err := h.validator.Validate(req); err != nil {
@@ -266,7 +316,7 @@ func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 	h.logger.Info("Password reset email sent", "email", req.Email)
 
 	return c.JSON(http.StatusOK, utils.SuccessResponse(
-		"Password reset instructions sent to your email",
+		SuccessPasswordReset,
 		nil,
 	))
 }
@@ -286,7 +336,7 @@ func (h *AuthHandler) ForgotPassword(c echo.Context) error {
 func (h *AuthHandler) ResetPassword(c echo.Context) error {
 	var req ResetPasswordRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request"))
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(ErrInvalidRequestPayload))
 	}
 
 	if err := h.validator.Validate(req); err != nil {
@@ -301,7 +351,7 @@ func (h *AuthHandler) ResetPassword(c echo.Context) error {
 	h.logger.Info("Password reset successful")
 
 	return c.JSON(http.StatusOK, utils.SuccessResponse(
-		"Password reset successful",
+		SuccessPasswordChanged,
 		nil,
 	))
 }
@@ -321,7 +371,7 @@ func (h *AuthHandler) ResetPassword(c echo.Context) error {
 func (h *AuthHandler) VerifyEmail(c echo.Context) error {
 	var req VerifyEmailRequest
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, utils.ErrorResponse("Invalid request"))
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(ErrInvalidRequestPayload))
 	}
 
 	if err := h.validator.Validate(req); err != nil {
@@ -333,10 +383,10 @@ func (h *AuthHandler) VerifyEmail(c echo.Context) error {
 		return utils.HandleError(c, err)
 	}
 
-	h.logger.Info("Email verified successfully")
+	h.logger.Info(SuccessEmailVerified)
 
 	return c.JSON(http.StatusOK, utils.SuccessResponse(
-		"Email verified successfully",
+		SuccessEmailVerified,
 		nil,
 	))
 }
@@ -362,7 +412,193 @@ func (h *AuthHandler) GetProfile(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, utils.SuccessResponse(
-		"Profile retrieved successfully",
+		SuccessProfile,
 		user,
+	))
+}
+
+// RegisterWithOTP godoc
+// @Summary      Register with OTP verification
+// @Description  Register new user with OTP email verification
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body RegisterWithOTPRequest true "Registration data"
+// @Success      201  {object}  utils.Response{data=domain.User}
+// @Failure      400  {object}  utils.ErrorResponse
+// @Failure      409  {object}  utils.ErrorResponse
+// @Failure      500  {object}  utils.ErrorResponse
+// @Router       /auth/register-with-otp [post]
+func (h *AuthHandler) RegisterWithOTP(c echo.Context) error {
+	var req RegisterWithOTPRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(ErrInvalidRequestPayload))
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(err.Error()))
+	}
+
+	user := &domain.User{
+		Email:    req.Email,
+		FullName: req.FullName,
+		Phone:    req.Phone,
+	}
+
+	result, err := h.authService.RegisterWithOTP(user, req.Password)
+	if err != nil {
+		h.logger.Error("Registration with OTP failed", err,
+			"email", req.Email,
+		)
+		return utils.HandleError(c, err)
+	}
+
+	return c.JSON(http.StatusCreated, utils.SuccessResponse(
+		SuccessRegistrationOTP,
+		result,
+	))
+}
+
+// VerifyOTP godoc
+// @Summary      Verify OTP
+// @Description  Verify OTP for email verification
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body VerifyOTPRequest true "OTP verification data"
+// @Success      200  {object}  utils.Response
+// @Failure      400  {object}  utils.ErrorResponse
+// @Failure      401  {object}  utils.ErrorResponse
+// @Failure      500  {object}  utils.ErrorResponse
+// @Router       /auth/verify-otp [post]
+func (h *AuthHandler) VerifyOTP(c echo.Context) error {
+	var req VerifyOTPRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(ErrInvalidRequestPayload))
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(err.Error()))
+	}
+
+	if err := h.authService.VerifyOTP(req.Email, req.OTP); err != nil {
+		h.logger.Error("OTP verification failed", err, "email", req.Email)
+		return utils.HandleError(c, err)
+	}
+
+	return c.JSON(http.StatusOK, utils.SuccessResponse(
+		SuccessOTPVerified,
+		nil,
+	))
+}
+
+// ResendOTP godoc
+// @Summary      Resend OTP
+// @Description  Resend OTP to user's email
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body ResendOTPRequest true "Email address"
+// @Success      200  {object}  utils.Response
+// @Failure      400  {object}  utils.ErrorResponse
+// @Failure      500  {object}  utils.ErrorResponse
+// @Router       /auth/resend-otp [post]
+func (h *AuthHandler) ResendOTP(c echo.Context) error {
+	var req ResendOTPRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(ErrInvalidRequestPayload))
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(err.Error()))
+	}
+
+	if err := h.authService.ResendOTP(req.Email); err != nil {
+		h.logger.Error("Failed to resend OTP", err, "email", req.Email)
+		return utils.HandleError(c, err)
+	}
+
+	return c.JSON(http.StatusOK, utils.SuccessResponse(
+		SuccessOTPResent,
+		nil,
+	))
+}
+
+// LoginWithOTP godoc
+// @Summary      Login with OTP
+// @Description  Request OTP for passwordless login
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body LoginWithOTPRequest true "Email address"
+// @Success      200  {object}  utils.Response
+// @Failure      400  {object}  utils.ErrorResponse
+// @Failure      500  {object}  utils.ErrorResponse
+// @Router       /auth/login-with-otp [post]
+func (h *AuthHandler) LoginWithOTP(c echo.Context) error {
+	var req LoginWithOTPRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(ErrInvalidRequestPayload))
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(err.Error()))
+	}
+
+	otp, err := h.authService.LoginWithOTP(req.Email)
+	if err != nil {
+		h.logger.Error("Login with OTP failed", err, "email", req.Email)
+		return utils.HandleError(c, err)
+	}
+
+	// In development, return OTP for testing
+	response := map[string]interface{}{
+		"message": "OTP sent to your email",
+		"otp":     otp, // Only in development
+	}
+
+	return c.JSON(http.StatusOK, utils.SuccessResponse(
+		SuccessOTPSent,
+		response,
+	))
+}
+
+// VerifyLoginOTP godoc
+// @Summary      Verify login OTP
+// @Description  Verify OTP for passwordless login
+// @Tags         auth
+// @Accept       json
+// @Produce      json
+// @Param        request body VerifyLoginOTPRequest true "OTP verification data"
+// @Success      200  {object}  utils.Response{data=AuthResponse}
+// @Failure      400  {object}  utils.ErrorResponse
+// @Failure      401  {object}  utils.ErrorResponse
+// @Failure      500  {object}  utils.ErrorResponse
+// @Router       /auth/verify-login-otp [post]
+func (h *AuthHandler) VerifyLoginOTP(c echo.Context) error {
+	var req VerifyLoginOTPRequest
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(ErrInvalidRequestPayload))
+	}
+
+	if err := h.validator.Validate(req); err != nil {
+		return c.JSON(http.StatusBadRequest, utils.ErrorResponse(err.Error()))
+	}
+
+	tokens, err := h.authService.VerifyLoginOTP(req.Email, req.OTP)
+	if err != nil {
+		h.logger.Error("Login OTP verification failed", err, "email", req.Email)
+		return utils.HandleError(c, err)
+	}
+
+	response := AuthResponse{
+		AccessToken:  tokens.AccessToken,
+		RefreshToken: tokens.RefreshToken,
+		User:         tokens.User,
+	}
+
+	return c.JSON(http.StatusOK, utils.SuccessResponse(
+		SuccessOTPLogin,
+		response,
 	))
 }
