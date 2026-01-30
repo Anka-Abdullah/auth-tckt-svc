@@ -1,0 +1,25 @@
+# FILE: ./.air.toml
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/main.exe ./cmd/api/main.go"
+  # Gunakan entrypoint bukan bin (untuk menghilangkan warning)
+  entrypoint = ["./tmp/main.exe"]
+  include_ext = ["go"]
+  exclude_dir = ["tmp", "vendor", ".git", "logs"]
+  delay = 1000
+  
+  # Optimasi untuk Windows
+  send_interrupt = true
+  kill_delay = "1s"
+
+[run]
+  # Tidak perlu exec jika sudah ada entrypoint
+  # exec akan otomatis menggunakan entrypoint
+
+[misc]
+  clean_on_exit = false  # Windows sering ada permission issues
+
+[screen]
+  clear_on_rebuild = true

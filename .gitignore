@@ -1,0 +1,6 @@
+*.txt
+.env
+.env.local
+.env.*.local
+*.env
+tmp
